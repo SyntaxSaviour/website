@@ -1,14 +1,13 @@
 """
-Tests for content and services endpoints.
-
-Refactored to use the shared conftest fixtures (in-memory SQLite + session
-override) so they run fully self-contained without a real database or seed data.
+Tests for content, services, SEO, and admin content endpoints.
 """
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.main import app
+from app.api.deps import get_db, get_current_active_admin, get_current_admin_user
 from app.models.service import Service
 from app.models.content import SiteSetting, FAQ, SocialLink
 
@@ -18,12 +17,12 @@ from app.models.content import SiteSetting, FAQ, SocialLink
 # ---------------------------------------------------------------------------
 
 def _seed_services(db: Session) -> list[Service]:
-    """Insert the 4 canonical BrainMint services."""
+    """Insert canonical services."""
     slugs = [
         ("Website Development", "website-development"),
-        ("Mobile App Development", "mobile-app-development"),
-        ("Software Development", "software-development"),
-        ("Digital Marketing", "digital-marketing"),
+        ("Application Development", "application-development"),
+        ("AI Agent Development", "ai-agent-development"),
+        ("Offshore Development Team", "offshore-development-team"),
     ]
     services = []
     for name, slug in slugs:
@@ -46,7 +45,7 @@ def _seed_services(db: Session) -> list[Service]:
 
 
 def _seed_site_settings(db: Session):
-    """Insert the site-content settings accessed by content endpoints."""
+    """Insert site-content settings accessed by public content endpoints."""
     keys = [
         "about_us",
         "why_choose_us",
@@ -146,35 +145,71 @@ class TestSEOEndpoints:
 
 
 # ===========================================================================
-# Admin content endpoints
+# Admin content endpoints & Auth Protection
 # ===========================================================================
 
 class TestAdminContentEndpoints:
-    def test_admin_create_and_delete_faq(self, client: TestClient, db: Session):
-        faq_payload = {
-            "question": "What technologies do you use?",
-            "answer": "We use modern stacks tailored to high-scale production.",
-            "category": "technical",
-            "display_order": 1,
-            "is_published": True,
-        }
-        create_res = client.post("/api/v1/admin/content/faqs", json=faq_payload)
-        assert create_res.status_code == 201, create_res.text
-        created_faq = create_res.json()
-        faq_id = created_faq["id"]
+    def test_admin_routes_return_401_without_token(self, db: Session):
+        """Verify unauthenticated access to admin routes returns 401 Unauthorized."""
+        # Use an isolated TestClient instance and ensure no admin auth overrides exist
+        with TestClient(app) as unauth_client:
+            unauth_client.app.dependency_overrides[get_db] = lambda: db
+            unauth_client.app.dependency_overrides.pop(get_current_active_admin, None)
+            unauth_client.app.dependency_overrides.pop(get_current_admin_user, None)
 
-        delete_res = client.delete(f"/api/v1/admin/content/faqs/{faq_id}")
-        assert delete_res.status_code == 200
+            endpoints = [
+                ("GET", "/api/v1/admin/content/services"),
+                ("GET", "/api/v1/admin/content/faqs"),
+                ("POST", "/api/v1/admin/content/services"),
+                ("POST", "/api/v1/admin/content/faqs"),
+                ("PUT", "/api/v1/admin/content/sections/about_us"),
+            ]
+            for method, url in endpoints:
+                if method == "GET":
+                    res = unauth_client.get(url)
+                elif method == "POST":
+                    res = unauth_client.post(url, json={})
+                elif method == "PUT":
+                    res = unauth_client.put(url, json={"value": {}})
+                assert res.status_code == 401, f"{method} {url} returned {res.status_code}, expected 401"
+
+    def test_admin_create_and_delete_faq(self, client: TestClient, db: Session):
+        client.app.dependency_overrides[get_current_active_admin] = lambda: {"id": 1, "email": "admin@brainmint.com"}
+        try:
+            faq_payload = {
+                "question": "What technologies do you use?",
+                "answer": "We use modern stacks tailored to high-scale production.",
+                "category": "technical",
+                "display_order": 1,
+                "is_published": True,
+            }
+            create_res = client.post("/api/v1/admin/content/faqs", json=faq_payload)
+            assert create_res.status_code == 201, create_res.text
+            created_faq = create_res.json()
+            faq_id = created_faq["id"]
+
+            delete_res = client.delete(f"/api/v1/admin/content/faqs/{faq_id}")
+            assert delete_res.status_code == 200
+        finally:
+            client.app.dependency_overrides.pop(get_current_active_admin, None)
 
     def test_admin_list_services(self, client: TestClient, db: Session):
-        _seed_services(db)
-        res = client.get("/api/v1/admin/content/services")
-        assert res.status_code == 200
-        assert len(res.json()) >= 4
+        client.app.dependency_overrides[get_current_active_admin] = lambda: {"id": 1, "email": "admin@brainmint.com"}
+        try:
+            _seed_services(db)
+            res = client.get("/api/v1/admin/content/services")
+            assert res.status_code == 200
+            assert len(res.json()) >= 4
+        finally:
+            client.app.dependency_overrides.pop(get_current_active_admin, None)
 
     def test_admin_update_site_section(self, client: TestClient, db: Session):
-        payload = {"value": {"content": "Updated about us text."}}
-        res = client.put("/api/v1/admin/content/sections/about_us", json=payload)
-        assert res.status_code == 200
-        body = res.json()
-        assert "updated successfully" in body["message"].lower()
+        client.app.dependency_overrides[get_current_active_admin] = lambda: {"id": 1, "email": "admin@brainmint.com"}
+        try:
+            payload = {"value": {"content": "Updated about us text."}}
+            res = client.put("/api/v1/admin/content/sections/about_us", json=payload)
+            assert res.status_code == 200
+            body = res.json()
+            assert "updated successfully" in body["message"].lower()
+        finally:
+            client.app.dependency_overrides.pop(get_current_active_admin, None)
