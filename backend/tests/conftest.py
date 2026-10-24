@@ -20,7 +20,8 @@ from app.main import app
 from app.api.deps import get_db
 from app.models.base import Base
 # Import all models so SQLAlchemy registers them before create_all
-from app.models import Enquiry, Service, SiteSetting, FAQ, SocialLink  # noqa: F401
+from app.models import Enquiry, Service, SiteSetting, FAQ, SocialLink, AdminUser  # noqa: F401
+from app.core.security import get_password_hash, create_access_token
 
 
 # ---------------------------------------------------------------------------
@@ -65,12 +66,25 @@ def db() -> Session:
 def client(db: Session) -> TestClient:
     """
     FastAPI TestClient with the real DB dependency overridden to use the
-    test session, and anti-spam services mocked.
+    test session, anti-spam services mocked, and pre-authenticated with an admin token.
     """
     def override_get_db():
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
+
+    # Seed test admin user for admin-protected endpoints
+    admin = db.query(AdminUser).filter(AdminUser.email == "admin@brainmint.com").first()
+    if not admin:
+        admin = AdminUser(
+            email="admin@brainmint.com",
+            hashed_password=get_password_hash("adminpassword123"),
+            is_active=True
+        )
+        db.add(admin)
+        db.commit()
+    
+    token = create_access_token(data={"sub": admin.email})
 
     # Bypass CAPTCHA and rate limiting for all tests by default
     with (
@@ -78,7 +92,9 @@ def client(db: Session) -> TestClient:
         patch("app.core.rate_limit.enquiry_limiter.check", return_value=None),
         patch("app.core.rate_limit.admin_enquiry_limiter.check", return_value=None),
     ):
-        yield TestClient(app)
+        test_client = TestClient(app)
+        test_client.headers = {**test_client.headers, "Authorization": f"Bearer {token}"}
+        yield test_client
 
     app.dependency_overrides.clear()
 
