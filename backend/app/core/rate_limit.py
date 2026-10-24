@@ -39,6 +39,9 @@ class RateLimiter:
     def __init__(self, max_requests: int = 5, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
+        # NOTE: State is stored in-memory — it resets on every deploy and is
+        # not shared across multiple processes or instances. This is fine for a
+        # single-worker setup; switch to a Redis-backed store for multi-instance.
         # Maps key → deque of timestamps (float)
         self._windows: Dict[str, Deque[float]] = defaultdict(deque)
 
