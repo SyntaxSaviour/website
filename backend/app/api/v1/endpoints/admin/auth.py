@@ -10,7 +10,6 @@ from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, create_refresh_token
 from app.models.admin_user import AdminUser
 from app.api.deps import get_current_active_admin
-# Import your password reset email function (adjust import path if needed)
 from app.services.email_service import send_password_reset_email
 
 router = APIRouter()
@@ -33,9 +32,6 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/login")
 def admin_login(form_data: LoginRequest, db: Session = Depends(get_db)):
-    """
-    Authenticate admin user and return access & refresh tokens.
-    """
     user = db.query(AdminUser).filter(AdminUser.email == form_data.email).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -57,9 +53,6 @@ def admin_login(form_data: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/refresh")
 def refresh_access_token(payload_data: RefreshTokenRequest):
-    """
-    Issues a new access token using a valid refresh token.
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired refresh token",
@@ -93,9 +86,6 @@ def refresh_access_token(payload_data: RefreshTokenRequest):
 
 @router.post("/logout")
 def logout_admin(admin: AdminUser = Depends(get_current_active_admin)):
-    """
-    Logs out the current authenticated admin.
-    """
     return {"message": "Successfully logged out. Please clear your tokens on the client side."}
 
 
@@ -105,12 +95,7 @@ def forgot_password(
     background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db)
 ):
-    """
-    Generates a password reset token and dispatches it via email in the background.
-    """
     admin = db.query(AdminUser).filter(AdminUser.email == data.email).first()
-    
-    # Always return a generic message to prevent email enumeration/leaks
     response_message = {"message": "If an account exists with this email, a password reset link has been sent."}
     
     if not admin:
@@ -123,17 +108,12 @@ def forgot_password(
         algorithm=getattr(settings, "ALGORITHM", "HS256")
     )
     
-    # Dispatch reset token ONLY via email background task
     background_tasks.add_task(send_password_reset_email, admin.email, reset_token)
-    
     return response_message
 
 
 @router.post("/reset-password")
 def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """
-    Resets the admin password using the provided reset token.
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Invalid or expired password reset token",

@@ -141,9 +141,9 @@ class TestServiceEnquirySubmit:
 
     @pytest.mark.parametrize("service", [
         "website-development",
-        "mobile-app-development",
-        "software-development",
-        "digital-marketing",
+        "application-development",
+        "ai-agent-development",
+        "offshore-development-team",
     ])
     def test_all_approved_services_accepted(self, service: str, client: TestClient, db: Session):
         payload = _valid_service_payload(
@@ -180,6 +180,7 @@ class TestServiceEnquirySubmit:
         assert res.status_code == 422
 
     def test_email_status_sent_on_success(self, client: TestClient, db: Session):
+        import time
         with patch("app.services.email_service.email_service.send_enquiry_notification"), \
              patch("app.services.email_service.email_service.send_enquiry_acknowledgement"):
             res = client.post(SERVICE_ENQUIRY_URL, json=_valid_service_payload(
@@ -187,11 +188,14 @@ class TestServiceEnquirySubmit:
             ))
         assert res.status_code == 201
         eid = res.json()["data"]["enquiry_id"]
+        time.sleep(0.2)       # wait for background email thread to finish
+        db.expire_all()       # force SQLAlchemy to re-read from DB
         record = db.query(Enquiry).filter(Enquiry.id == eid).first()
         assert record.email_status == EmailStatus.sent
 
     def test_email_failure_still_saves_enquiry(self, client: TestClient, db: Session):
         """Even if email delivery fails, the DB row must exist (no lead lost)."""
+        import time
         from app.services.email_service import EmailDeliveryError
         with patch(
             "app.services.email_service.email_service.send_enquiry_notification",
@@ -203,6 +207,8 @@ class TestServiceEnquirySubmit:
 
         assert res.status_code == 201   # Submission still accepted
         eid = res.json()["data"]["enquiry_id"]
+        time.sleep(0.2)       # wait for background email thread to finish
+        db.expire_all()       # force SQLAlchemy to re-read from DB
         record = db.query(Enquiry).filter(Enquiry.id == eid).first()
         assert record is not None        # Record exists
         assert record.email_status == EmailStatus.failed  # Marked as failed
@@ -437,7 +443,7 @@ class TestEnquiryCRUD:
             name="Dup Test",
             email="dup_crud@example.com",
             phone=None,
-            service="software-development",
+            service="application-development",
             message="Same message for idempotency test.",
             source=EnquirySource.service_enquiry,
             ip_address=None,
@@ -501,7 +507,7 @@ class TestEnquiryCRUD:
                 name=f"List Test {i}",
                 email=f"listtest{i}@example.com",
                 phone=None,
-                service="digital-marketing",
+                service="application-development",
                 message="Test message for list admin.",
                 source=EnquirySource.service_enquiry,
                 ip_address=None,

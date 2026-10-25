@@ -34,12 +34,12 @@ class EmailStatus(str, enum.Enum):
     failed = "failed"
 
 
-# Canonical service slugs – must match the 4 approved services on the site.
+# Canonical service slugs – must match the 4 seeded services in seed_content.py.
 APPROVED_SERVICES = frozenset({
     "website-development",
-    "mobile-app-development",
-    "software-development",
-    "digital-marketing",
+    "application-development",
+    "ai-agent-development",
+    "offshore-development-team",
 })
 
 

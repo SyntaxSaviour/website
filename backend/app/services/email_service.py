@@ -8,7 +8,6 @@ from app.core.database import SessionLocal
 from app.models.enquiry import Enquiry, EmailStatus
 
 class EmailDeliveryError(Exception):
-    """Custom exception raised when email delivery fails."""
     pass
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates" / "email"
@@ -50,7 +49,6 @@ def send_mail(recipient: str, subject: str, html_body: str, plain_fallback: str)
         response.raise_for_status()
 
     else:
-        # Fallback to standard SMTP logic
         use_ssl = getattr(settings, "SMTP_SSL", False)
         smtp_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
 
@@ -129,15 +127,11 @@ def send_enquiry_acknowledgement(enquiry_id: int):
         send_mail(enquiry.email, "We've received your message – BrainMint Software", client_html, client_plain)
 
     except Exception as e:
-        # Non-blocking log or handling for client acknowledgement failure
         pass
     finally:
         db.close()
 
 def send_password_reset_email(email: str, reset_token: str):
-    """
-    Sends the password reset token via email to the admin.
-    """
     reset_link = f"https://your-frontend-domain.com/admin/reset-password?token={reset_token}"
     subject = "Password Reset Request - BrainMint Admin"
     html_body = f"""
