@@ -1,31 +1,14 @@
-<<<<<<< HEAD
 import os
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-=======
 from typing import List
-
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEV_SECRET = "dev-only-insecure-secret-change-me"
 
->>>>>>> dfcbd30b9be2441de778c8562dc6a0327756a581
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "BrainMint Software Website"
     API_V1_STR: str = "/api/v1"
-<<<<<<< HEAD
-    SITE_URL: str = os.getenv("SITE_URL", "https://brainmint.com")
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./test.db")
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-
-    # ---- Email ----
-    EMAIL_ENABLED: bool = True
-    EMAIL_PROVIDER: str = "smtp"          # smtp | sendgrid | mailgun
-    EMAIL_FROM: str = "BrainMint Software <hello@brainmint.com>"
-    EMAIL_TEAM_TO: str = ""               # Ashutosh's inbox
-=======
     SITE_URL: str = "https://brainmint.com"
     ENVIRONMENT: str = "development"  # development | staging | production
     LOG_LEVEL: str = "INFO"
@@ -46,7 +29,6 @@ class Settings(BaseSettings):
     EMAIL_PROVIDER: str = "smtp"  # smtp | sendgrid | mailgun
     EMAIL_FROM: str = "BrainMint Software <hello@brainmint.com>"
     EMAIL_TEAM_TO: str = ""  # inbox that receives enquiries
->>>>>>> dfcbd30b9be2441de778c8562dc6a0327756a581
 
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
@@ -58,19 +40,6 @@ class Settings(BaseSettings):
     MAILGUN_API_KEY: str = ""
     MAILGUN_DOMAIN: str = ""
 
-<<<<<<< HEAD
-    # ---- CAPTCHA ----
-    CAPTCHA_ENABLED: bool = True
-    CAPTCHA_PROVIDER: str = "hcaptcha"    # hcaptcha | recaptcha
-    CAPTCHA_SECRET_KEY: str = ""
-    RECAPTCHA_MIN_SCORE: float = 0.5
-
-    model_config = SettingsConfigDict(
-        case_sensitive=True,
-        env_file=".env",
-        extra="allow",
-    )
-=======
     # Names read by app/services/email_service.py. They default to the fields
     # above, so one set of env vars is enough.
     SMTP_USER: str = ""
@@ -96,7 +65,6 @@ class Settings(BaseSettings):
             v = v.replace("postgresql://", "postgresql+psycopg2://", 1)
         return v
 
-    
     @model_validator(mode="after")
     def _fill_aliases_and_check(self) -> "Settings":
         self.SMTP_USER = self.SMTP_USER or self.SMTP_USERNAME
@@ -113,7 +81,6 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
->>>>>>> dfcbd30b9be2441de778c8562dc6a0327756a581
 
 
 settings = Settings()
