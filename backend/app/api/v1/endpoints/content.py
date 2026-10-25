@@ -1,10 +1,6 @@
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-<<<<<<< HEAD
-=======
-
->>>>>>> dfcbd30b9be2441de778c8562dc6a0327756a581
 from app.api.deps import get_db
 from app.crud.content import content_crud
 from app.schemas.content import FAQResponse, SocialLinkResponse
