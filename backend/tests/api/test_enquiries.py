@@ -200,7 +200,7 @@ class TestServiceEnquirySubmit:
         with patch(
             "app.services.email_service.email_service.send_enquiry_notification",
             side_effect=EmailDeliveryError("SMTP timeout"),
-        ):
+        ), patch("app.services.email_service.email_service.send_enquiry_acknowledgement"):
             res = client.post(SERVICE_ENQUIRY_URL, json=_valid_service_payload(
                 email="emailfail@example.com"
             ))
