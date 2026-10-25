@@ -516,6 +516,25 @@ class TestEnquiryCRUD:
         assert total >= 3
         assert len(items) >= 3
 
+    def test_same_enquiry_after_window_creates_new_row(self, db: Session):
+        """Re-submitting identical content after the duplicate window must not crash."""
+        from datetime import datetime, timedelta, timezone
+        kwargs = dict(
+            name="Late Resubmit",
+            email="late_resubmit@example.com",
+            phone=None,
+            service="website-development",
+            message="Same message sent again later.",
+            source=EnquirySource.service_enquiry,
+            ip_address=None,
+        )
+        e1, dup1 = enquiry_crud.create(db, **kwargs)
+        e1.created_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+        db.commit()
+        e2, dup2 = enquiry_crud.create(db, **kwargs)
+        assert dup1 is False and dup2 is False
+        assert e1.id != e2.id
+
     def test_idempotency_key_uniqueness(self):
         k1 = _build_idempotency_key("a@b.com", "web", "hello")
         k2 = _build_idempotency_key("a@b.com", "web", "hello")
