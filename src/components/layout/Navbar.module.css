@@ -1,0 +1,246 @@
+/* Navbar.module.css — BrainMint — matches reference screenshot */
+
+/* ── Outer header ──────────────────────────────────────── */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  width: 100%;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* ── Inner flex row ────────────────────────────────────── */
+.inner {
+  display: flex;
+  align-items: center;
+  height: 68px;
+  gap: var(--space-4);
+}
+
+/* ── Logo: symbol + wordmark ───────────────────────────── */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  flex-shrink: 0;
+  margin-right: var(--space-8);
+}
+
+.logoSymbol {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.logoText {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.logoBrain {
+  color: #111827;   /* near-black, matches reference */
+}
+
+.logoMint {
+  color: #f97316;   /* warm orange, matches "Mint" in reference */
+}
+
+/* ── Desktop nav links ─────────────────────────────────── */
+.navLinks {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: #374151;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.navLink:hover {
+  color: #FF4081;
+  background: #fff0f5;
+}
+
+/* Active — hot pink, matches reference screenshot */
+.navLink.active {
+  color: #FF4081;
+  font-weight: var(--fw-semibold);
+}
+
+.chevron {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* ── Social icon buttons — pale-blue circles ───────────── */
+.socials {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-left: var(--space-4);
+}
+
+.socialBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: #dbeafe;      /* pale blue, matches reference */
+  border: none;
+  transition:
+    background var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.socialBtn:hover {
+  background: #bfdbfe;
+  transform: translateY(-1px);
+}
+
+.socialIcon {
+  width: 14px;
+  height: 14px;
+  /* Tint to blue — the icons are dark so we colorize them */
+  filter: invert(30%) sepia(80%) saturate(400%) hue-rotate(200deg) brightness(0.9);
+  transition: filter var(--transition-fast);
+}
+
+/* ── Hamburger ─────────────────────────────────────────── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.bar {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: #374151;
+  border-radius: 2px;
+  transition:
+    transform var(--transition-base),
+    opacity var(--transition-base);
+  transform-origin: center;
+}
+
+.barTop    { transform: translateY(7px) rotate(45deg); }
+.barMiddle { opacity: 0; transform: scaleX(0); }
+.barBottom { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── Mobile menu drawer ────────────────────────────────── */
+.mobileMenu {
+  display: none;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height var(--transition-base);
+  background: #ffffff;
+  border-top: 1px solid #f0f0f0;
+}
+
+.mobileMenuOpen {
+  max-height: 640px;
+}
+
+.mobileLinks {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3) var(--space-4);
+  gap: 2px;
+}
+
+.mobileLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--fw-medium);
+  color: #374151;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+  text-decoration: none;
+}
+
+.mobileLink:hover {
+  color: #FF4081;
+  background: #fff0f5;
+}
+
+.mobileLinkActive {
+  color: #FF4081;
+  font-weight: var(--fw-semibold);
+  background: #fff0f5;
+}
+
+.mobileSocials {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid #f0f0f0;
+  margin-top: var(--space-2);
+}
+
+/* ── Responsive ────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .navLinks,
+  .socials {
+    display: none;
+  }
+
+  .hamburger {
+    display: flex;
+    margin-left: auto;
+  }
+
+  .mobileMenu {
+    display: block;
+  }
+}
+
+@media (max-width: 480px) {
+  .inner {
+    height: 58px;
+  }
+
+  .logoSymbol {
+    height: 30px;
+  }
+
+  .logoText {
+    font-size: 1.25rem;
+  }
+}
