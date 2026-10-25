@@ -1,5 +1,8 @@
 import smtplib
+<<<<<<< HEAD
 import httpx
+=======
+>>>>>>> dfcbd30b9be2441de778c8562dc6a0327756a581
 from pathlib import Path
 from email.message import EmailMessage
 from sqlalchemy.orm import Session
@@ -40,6 +43,7 @@ def send_enquiry_notification(enquiry_id: int):
             "source": enquiry.source,
         }
 
+<<<<<<< HEAD
         provider = getattr(settings, "EMAIL_PROVIDER", "smtp").lower()
 
         def send_mail(recipient: str, subject: str, html_body: str, plain_fallback: str):
@@ -87,14 +91,38 @@ def send_enquiry_notification(enquiry_id: int):
                     if settings.SMTP_USER and settings.SMTP_PASSWORD:
                         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                     server.send_message(msg)
+=======
+        use_ssl = getattr(settings, "SMTP_SSL", False)
+        smtp_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+
+        def send_mail(recipient: str, subject: str, html_body: str, plain_fallback: str):
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER
+            msg["To"] = recipient
+            msg.set_content(plain_fallback)
+            if html_body:
+                msg.add_alternative(html_body, subtype="html")
+
+            with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                if not use_ssl and getattr(settings, "SMTP_TLS", True):
+                    server.starttls()
+                if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                    server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg)
+>>>>>>> dfcbd30b9be2441de778c8562dc6a0327756a581
 
         company_html = render_template("enquiry_notification.html", context)
         company_plain = f"New enquiry received via {enquiry.source}:\n\nName: {enquiry.name}\nEmail: {enquiry.email}"
         send_mail(settings.EMAILS_TO_EMAIL, f"New Enquiry from {enquiry.name}", company_html, company_plain)
 
         if enquiry.email:
+<<<<<<< HEAD
             # Fixed template filename mismatch here (added missing 'e')
             client_html = render_template("enquiry_acknowledgement.html", context)
+=======
+            client_html = render_template("enquiry_acknowledge.html", context)
+>>>>>>> dfcbd30b9be2441de778c8562dc6a0327756a581
             client_plain = f"Hi {enquiry.name}, we received your enquiry."
             send_mail(enquiry.email, "We've received your message – BrainMint Software", client_html, client_plain)
 
