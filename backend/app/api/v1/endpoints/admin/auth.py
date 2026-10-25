@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from jose import jwt, JWTError
@@ -10,6 +10,8 @@ from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, create_refresh_token
 from app.models.admin_user import AdminUser
 from app.api.deps import get_current_active_admin
+# Import your password reset email function (adjust import path if needed)
+from app.services.email_service import send_password_reset_email
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -98,13 +100,21 @@ def logout_admin(admin: AdminUser = Depends(get_current_active_admin)):
 
 
 @router.post("/forgot-password")
-def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(
+    data: ForgotPasswordRequest, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db)
+):
     """
-    Generates a password reset token.
+    Generates a password reset token and dispatches it via email in the background.
     """
     admin = db.query(AdminUser).filter(AdminUser.email == data.email).first()
+    
+    # Always return a generic message to prevent email enumeration/leaks
+    response_message = {"message": "If an account exists with this email, a password reset link has been sent."}
+    
     if not admin:
-        return {"message": "If the email exists, a password reset link has been sent."}
+        return response_message
     
     expire = datetime.utcnow() + timedelta(minutes=15)
     reset_token = jwt.encode(
@@ -113,8 +123,10 @@ def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
         algorithm=getattr(settings, "ALGORITHM", "HS256")
     )
     
-    # Note: You can trigger your email service here to dispatch reset_token to admin.email
-    return {"message": "Password reset link sent to email.", "debug_reset_token": reset_token}
+    # Dispatch reset token ONLY via email background task
+    background_tasks.add_task(send_password_reset_email, admin.email, reset_token)
+    
+    return response_message
 
 
 @router.post("/reset-password")
