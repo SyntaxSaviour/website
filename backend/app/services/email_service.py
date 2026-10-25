@@ -114,13 +114,91 @@ def send_enquiry_notification(enquiry_id: int):
     finally:
         db.close()
 
+def send_enquiry_acknowledgement(enquiry_id: int):
+    """Send the customer acknowledgement email for the given enquiry."""
+    db: Session = SessionLocal()
+    enquiry = None
+    try:
+        enquiry = db.query(Enquiry).filter(Enquiry.id == enquiry_id).first()
+        if not enquiry or not enquiry.email:
+            return
+
+        context = {
+            "enquiry_id": enquiry.id,
+            "name": enquiry.name,
+            "email": enquiry.email,
+            "phone": enquiry.phone,
+            "service": enquiry.service,
+            "message": enquiry.message,
+            "source": enquiry.source,
+        }
+
+        provider = getattr(settings, "EMAIL_PROVIDER", "smtp").lower()
+
+        def send_mail(recipient: str, subject: str, html_body: str, plain_fallback: str):
+            if provider == "sendgrid":
+                headers = {
+                    "Authorization": f"Bearer {settings.SENDGRID_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "personalizations": [{"to": [{"email": recipient}]}],
+                    "from": {"email": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER},
+                    "subject": subject,
+                    "content": [{"type": "text/html", "value": html_body or plain_fallback}]
+                }
+                response = httpx.post("https://api.sendgrid.com/v3/mail/send", json=payload, headers=headers, timeout=10.0)
+                response.raise_for_status()
+
+            elif provider == "mailgun":
+                auth = ("api", settings.MAILGUN_API_KEY)
+                data = {
+                    "from": f"Support <{settings.EMAILS_FROM_EMAIL or settings.SMTP_USER}>",
+                    "to": [recipient],
+                    "subject": subject,
+                    "html": html_body or plain_fallback
+                }
+                response = httpx.post(f"https://api.mailgun.net/v3/{settings.MAILGUN_DOMAIN}/messages", data=data, auth=auth, timeout=10.0)
+                response.raise_for_status()
+
+            else:
+                use_ssl = getattr(settings, "SMTP_SSL", False)
+                smtp_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+
+                msg = EmailMessage()
+                msg["Subject"] = subject
+                msg["From"] = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER
+                msg["To"] = recipient
+                msg.set_content(plain_fallback)
+                if html_body:
+                    msg.add_alternative(html_body, subtype="html")
+
+                with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                    if not use_ssl and getattr(settings, "SMTP_TLS", True):
+                        server.starttls()
+                    if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                    server.send_message(msg)
+
+        client_html = render_template("enquiry_acknowledgement.html", context)
+        client_plain = f"Hi {enquiry.name}, we received your enquiry."
+        send_mail(enquiry.email, "We've received your message – BrainMint Software", client_html, client_plain)
+
+    except Exception as e:
+        raise EmailDeliveryError(str(e)) from e
+    finally:
+        db.close()
+
+
 class EmailService:
     def send_enquiry_notification(self, enquiry_id: int):
+        """Send the internal team notification for the given enquiry ID."""
         return send_enquiry_notification(enquiry_id)
 
     def send_enquiry_acknowledgement(self, enquiry_id: int):
-        pass
-    
+        """Send the customer acknowledgement email for the given enquiry ID."""
+        return send_enquiry_acknowledgement(enquiry_id)
+
     def __call__(self, enquiry_id: int):
         return send_enquiry_notification(enquiry_id)
 

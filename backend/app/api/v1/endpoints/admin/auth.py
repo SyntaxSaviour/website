@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from jose import jwt, JWTError
@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, create_refresh_token
 from app.models.admin_user import AdminUser
 from app.api.deps import get_current_active_admin
+from app.services.email_service import email_service
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -98,23 +99,90 @@ def logout_admin(admin: AdminUser = Depends(get_current_active_admin)):
 
 
 @router.post("/forgot-password")
-def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(
+    data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """
-    Generates a password reset token.
+    Generates a password reset token and emails it to the admin.
+    Always returns the same generic response to prevent user enumeration.
     """
+    # Always return the same message to prevent user enumeration
+    generic_response = {"message": "If the email exists, a password reset link has been sent."}
+
     admin = db.query(AdminUser).filter(AdminUser.email == data.email).first()
     if not admin:
-        return {"message": "If the email exists, a password reset link has been sent."}
-    
+        return generic_response
+
     expire = datetime.utcnow() + timedelta(minutes=15)
     reset_token = jwt.encode(
-        {"sub": admin.email, "exp": expire, "type": "reset"}, 
-        settings.SECRET_KEY, 
-        algorithm=getattr(settings, "ALGORITHM", "HS256")
+        {"sub": admin.email, "exp": expire, "type": "reset"},
+        settings.SECRET_KEY,
+        algorithm=getattr(settings, "ALGORITHM", "HS256"),
     )
-    
-    # Note: You can trigger your email service here to dispatch reset_token to admin.email
-    return {"message": "Password reset link sent to email.", "debug_reset_token": reset_token}
+
+    # Send the reset token by email only – never include it in the response.
+    frontend_url = getattr(settings, "FRONTEND_URL", "")
+    reset_link = f"{frontend_url}/admin/reset-password?token={reset_token}"
+
+    def _send_reset_email():
+        try:
+            import smtplib, httpx
+            from email.message import EmailMessage as StdEmailMessage
+            from app.services.email_service import render_template
+
+            context = {
+                "name": getattr(admin, "name", admin.email),
+                "reset_link": reset_link,
+                "expiry_minutes": 15,
+            }
+            provider = getattr(settings, "EMAIL_PROVIDER", "smtp").lower()
+            subject = "BrainMint Admin – Password Reset Request"
+            html_body = render_template("password_reset.html", context)
+            plain = (
+                f"Hi {context['name']},\n\n"
+                f"Click the link below to reset your password (expires in 15 min):\n{reset_link}\n\n"
+                "If you did not request this, you can safely ignore this email."
+            )
+
+            if provider == "sendgrid":
+                headers = {"Authorization": f"Bearer {settings.SENDGRID_API_KEY}", "Content-Type": "application/json"}
+                payload = {
+                    "personalizations": [{"to": [{"email": admin.email}]}],
+                    "from": {"email": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER},
+                    "subject": subject,
+                    "content": [{"type": "text/html", "value": html_body or plain}],
+                }
+                httpx.post("https://api.sendgrid.com/v3/mail/send", json=payload, headers=headers, timeout=10.0).raise_for_status()
+            elif provider == "mailgun":
+                httpx.post(
+                    f"https://api.mailgun.net/v3/{settings.MAILGUN_DOMAIN}/messages",
+                    data={"from": f"BrainMint <{settings.EMAILS_FROM_EMAIL or settings.SMTP_USER}>", "to": [admin.email], "subject": subject, "html": html_body or plain},
+                    auth=("api", settings.MAILGUN_API_KEY), timeout=10.0,
+                ).raise_for_status()
+            else:
+                use_ssl = getattr(settings, "SMTP_SSL", False)
+                smtp_cls = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+                msg = StdEmailMessage()
+                msg["Subject"] = subject
+                msg["From"] = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER
+                msg["To"] = admin.email
+                msg.set_content(plain)
+                if html_body:
+                    msg.add_alternative(html_body, subtype="html")
+                with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                    if not use_ssl and getattr(settings, "SMTP_TLS", True):
+                        server.starttls()
+                    if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                    server.send_message(msg)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Failed to send password-reset email to %s", admin.email)
+
+    background_tasks.add_task(_send_reset_email)
+    return generic_response
 
 
 @router.post("/reset-password")
