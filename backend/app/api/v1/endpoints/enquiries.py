@@ -9,7 +9,7 @@ Anti-spam stack (applied in order):
   5. Input sanitisation – HTML/XSS stripping before DB write
 """
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -18,6 +18,7 @@ from app.api.deps import get_db
 from app.core.rate_limit import enquiry_limiter, get_client_ip
 from app.models.enquiry import EnquirySource
 from app.schemas.enquiry import ServiceEnquiryCreate, EnquiryResponse
+from app.services.email_service import email_service
 from app.services.enquiry_service import enquiry_service
 
 router = APIRouter()
@@ -53,6 +54,7 @@ def _format_validation_errors(exc: ValidationError) -> JSONResponse:
 )
 async def submit_service_enquiry(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """
@@ -89,7 +91,7 @@ async def submit_service_enquiry(
         )
 
     # --- Business logic (sanitise → captcha → DB → email) ---
-    enquiry, is_duplicate = enquiry_service.process_submission(
+    new_enquiry, is_duplicate = enquiry_service.process_submission(
         db,
         name=payload.name,
         email=str(payload.email),
@@ -99,6 +101,7 @@ async def submit_service_enquiry(
         source=EnquirySource.service_enquiry,
         ip_address=client_ip,
         captcha_token=payload.captcha_token,
+        background_tasks=background_tasks,
     )
 
     http_status = status.HTTP_200_OK if is_duplicate else status.HTTP_201_CREATED
@@ -112,8 +115,8 @@ async def submit_service_enquiry(
                 else "Thank you! We've received your enquiry and will get back to you within 24 hours."
             ),
             "data": {
-                "enquiry_id": enquiry.id,
-                "email_status": enquiry.email_status.value,
+                "enquiry_id": new_enquiry.id,
+                "email_status": new_enquiry.email_status.value,
             },
         },
     )

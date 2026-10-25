@@ -12,7 +12,7 @@ The contact form does not require a service selection and uses
 EnquirySource.contact_us so admin can filter by origin.
 """
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -21,6 +21,7 @@ from app.api.deps import get_db
 from app.core.rate_limit import enquiry_limiter, get_client_ip
 from app.models.enquiry import EnquirySource
 from app.schemas.enquiry import ContactEnquiryCreate
+from app.services.email_service import email_service
 from app.services.enquiry_service import enquiry_service
 
 router = APIRouter()
@@ -53,6 +54,7 @@ def _format_validation_errors(exc: ValidationError) -> JSONResponse:
 )
 async def submit_contact_enquiry(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """
@@ -83,7 +85,7 @@ async def submit_contact_enquiry(
             },
         )
 
-    enquiry, is_duplicate = enquiry_service.process_submission(
+    new_enquiry, is_duplicate = enquiry_service.process_submission(
         db,
         name=payload.name,
         email=str(payload.email),
@@ -93,6 +95,7 @@ async def submit_contact_enquiry(
         source=EnquirySource.contact_us,
         ip_address=client_ip,
         captcha_token=payload.captcha_token,
+        background_tasks=background_tasks,
     )
 
     http_status = status.HTTP_200_OK if is_duplicate else status.HTTP_201_CREATED
@@ -106,8 +109,8 @@ async def submit_contact_enquiry(
                 else "Thanks for reaching out! We'll get back to you within 24 hours."
             ),
             "data": {
-                "enquiry_id": enquiry.id,
-                "email_status": enquiry.email_status.value,
+                "enquiry_id": new_enquiry.id,
+                "email_status": new_enquiry.email_status.value,
             },
         },
     )

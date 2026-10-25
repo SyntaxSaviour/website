@@ -158,6 +158,27 @@ class EmailService:
         return send_password_reset_email(email, reset_token)
     
     def __call__(self, enquiry_id: int):
-        return send_enquiry_notification(enquiry_id)
+        email_error = None
+        try:
+            self.send_enquiry_notification(enquiry_id)
+            self.send_enquiry_acknowledgement(enquiry_id)
+        except Exception as e:
+            email_error = str(e)
+
+        db = SessionLocal()
+        try:
+            enquiry = db.query(Enquiry).filter(Enquiry.id == enquiry_id).first()
+            if enquiry:
+                if email_error:
+                    enquiry.email_status = EmailStatus.failed
+                    enquiry.email_error = email_error
+                else:
+                    enquiry.email_status = EmailStatus.sent
+                    enquiry.email_error = None
+                db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
 
 email_service = EmailService()

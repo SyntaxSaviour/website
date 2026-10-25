@@ -27,12 +27,14 @@ from app.core.security import get_password_hash, create_access_token
 # ---------------------------------------------------------------------------
 # Database setup – in-memory SQLite for tests
 # ---------------------------------------------------------------------------
+from sqlalchemy.pool import StaticPool
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -40,6 +42,10 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(scope="session", autouse=True)
 def create_test_database():
     """Create all tables once per test session."""
+    import app.core.database
+    import app.services.email_service
+    app.core.database.SessionLocal = TestingSessionLocal
+    app.services.email_service.SessionLocal = TestingSessionLocal
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
